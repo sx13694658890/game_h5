@@ -38,3 +38,21 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.star-twinkle {
+  animation-name: star-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}

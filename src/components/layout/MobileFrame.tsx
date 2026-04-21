@@ -10,7 +10,7 @@ type Props = {
 export function MobileFrame({ children }: Props) {
   return (
     <div
-      className="mx-auto flex h-full w-full max-w-[428px] flex-col bg-game-bg"
+      className="mx-auto flex h-full w-full max-w-[428px] flex-col bg-game-bg max-h-[min(100dvh,calc(100dvw*2.22))] min-h-0"
       style={{
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)',
