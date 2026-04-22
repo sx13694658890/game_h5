@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { GamePhase } from '../types/game'
+import { getMenuStartLevel, resetMenuStartLevelToFirst, setMenuStartLevel } from '../utils/gameProgress'
 import { addLeaderboardEntry } from '../utils/leaderboard'
 
 export interface GameStoreState {
@@ -23,6 +24,8 @@ export interface GameStoreState {
 
   setPhase: (phase: GamePhase) => void
   resetRun: () => void
+  restartCurrentLevel: () => void
+  prepareRetryAfterGameOver: () => void
   beginPlaying: () => void
   pauseGame: () => void
   resumeGame: () => void
@@ -38,6 +41,8 @@ const initial = (): Omit<
   GameStoreState,
   | 'setPhase'
   | 'resetRun'
+  | 'restartCurrentLevel'
+  | 'prepareRetryAfterGameOver'
   | 'beginPlaying'
   | 'pauseGame'
   | 'resumeGame'
@@ -64,7 +69,42 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setPhase: (phase) => set({ phase }),
 
-  resetRun: () => set({ ...initial(), levelStartedAt: now() }),
+  resetRun: () =>
+    set({
+      ...initial(),
+      level: getMenuStartLevel(),
+      levelStartedAt: now(),
+    }),
+
+  restartCurrentLevel: () =>
+    set((s) => ({
+      lives: 3,
+      score: 0,
+      brickStreak: 0,
+      phase: 'idle',
+      scoreAtLevelStart: 0,
+      levelStartedAt: now(),
+      lastLevelScoreDelta: 0,
+      lastLevelStars: 1,
+      lastRecordId: null,
+      lastBrokeRecord: false,
+      level: s.level,
+    })),
+
+  prepareRetryAfterGameOver: () =>
+    set((s) => ({
+      lives: 3,
+      score: 0,
+      brickStreak: 0,
+      phase: 'playing',
+      scoreAtLevelStart: 0,
+      levelStartedAt: now(),
+      lastLevelScoreDelta: 0,
+      lastLevelStars: 1,
+      lastRecordId: null,
+      lastBrokeRecord: false,
+      level: s.level,
+    })),
 
   beginPlaying: () =>
     set((s) => ({
@@ -94,6 +134,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     const s = get()
     const nextLives = s.lives - 1
     if (nextLives <= 0) {
+      resetMenuStartLevelToFirst()
       const { entry, brokeRecord } = addLeaderboardEntry(s.score, s.level)
       set({
         lives: 0,
@@ -122,12 +163,14 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     })
   },
 
-  advanceLevel: () =>
+  advanceLevel: () => {
     set((s) => ({
       level: s.level + 1,
       brickStreak: 0,
       phase: 'playing',
       scoreAtLevelStart: s.score,
       levelStartedAt: now(),
-    })),
+    }))
+    setMenuStartLevel(get().level)
+  },
 }))

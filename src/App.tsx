@@ -2,30 +2,72 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useState } from 'react'
 import { MobileFrame } from './components/layout/MobileFrame'
 import { StarBackground } from './components/ui/StarBackground'
+import type { GameEntrySource } from './pages/GamePage'
 import { GamePage } from './pages/GamePage'
+import type { GameOverSnapshot } from './pages/GameOverPage'
+import { GameOverPage } from './pages/GameOverPage'
 import { LeaderboardPage } from './pages/LeaderboardPage'
+import { LoadingPage } from './pages/LoadingPage'
 import { MenuPage } from './pages/MenuPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { useGameStore } from './store/gameStore'
 import { getHighScore } from './utils/leaderboard'
 
-type Route = 'menu' | 'game' | 'leaderboard' | 'settings'
+type Route = 'loading' | 'menu' | 'game' | 'game-over' | 'leaderboard' | 'settings'
 
 function App() {
-  const [route, setRoute] = useState<Route>('menu')
+  const [route, setRoute] = useState<Route>('loading')
   const [leaderHighlightId, setLeaderHighlightId] = useState<string | null>(null)
+  const [gameOverSnapshot, setGameOverSnapshot] = useState<GameOverSnapshot | null>(null)
+  const [gameBootId, setGameBootId] = useState(0)
+  const [gameEntrySource, setGameEntrySource] = useState<GameEntrySource>('menu')
 
-  const handleGameOverRecorded = useCallback((p: { entryId: string; brokeRecord: boolean }) => {
-    setLeaderHighlightId(p.entryId)
-  }, [])
+  const resetRun = useGameStore((s) => s.resetRun)
+  const prepareRetryAfterGameOver = useGameStore((s) => s.prepareRetryAfterGameOver)
+
+  const handleGameOver = useCallback(
+    (p: { score: number; level: number; brokeRecord: boolean; entryId: string }) => {
+      setLeaderHighlightId(p.entryId)
+      setGameOverSnapshot({ score: p.score, level: p.level, brokeRecord: p.brokeRecord })
+      setRoute('game-over')
+    },
+    [],
+  )
 
   const openLeaderboardFromMenu = useCallback(() => {
     setLeaderHighlightId(null)
     setRoute('leaderboard')
   }, [])
 
-  const openLeaderboardFromGameOver = useCallback(() => {
-    setRoute('leaderboard')
+  const finishLoading = useCallback(() => {
+    setRoute('menu')
   }, [])
+
+  const openGameFromMenu = useCallback(() => {
+    setGameEntrySource('menu')
+    setGameBootId((k) => k + 1)
+    setRoute('game')
+  }, [])
+
+  const retryFromGameOver = useCallback(() => {
+    prepareRetryAfterGameOver()
+    setGameEntrySource('retry')
+    setGameBootId((k) => k + 1)
+    setGameOverSnapshot(null)
+    setRoute('game')
+  }, [prepareRetryAfterGameOver])
+
+  const menuFromGameOver = useCallback(() => {
+    resetRun()
+    setGameOverSnapshot(null)
+    setRoute('menu')
+  }, [resetRun])
+
+  const leaderboardFromGameOver = useCallback(() => {
+    resetRun()
+    setGameOverSnapshot(null)
+    setRoute('leaderboard')
+  }, [resetRun])
 
   return (
     <MobileFrame>
@@ -40,19 +82,29 @@ function App() {
             exit={{ opacity: 0, x: route === 'menu' ? 12 : -12 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
           >
+            {route === 'loading' && <LoadingPage onDone={finishLoading} />}
             {route === 'menu' && (
               <MenuPage
                 highScore={getHighScore()}
-                onStart={() => setRoute('game')}
+                onStart={openGameFromMenu}
                 onLeaderboard={openLeaderboardFromMenu}
                 onSettings={() => setRoute('settings')}
               />
             )}
             {route === 'game' && (
               <GamePage
+                key={gameBootId}
+                entrySource={gameEntrySource}
                 onBack={() => setRoute('menu')}
-                onGoLeaderboard={openLeaderboardFromGameOver}
-                onGameOverRecorded={handleGameOverRecorded}
+                onGameOver={handleGameOver}
+              />
+            )}
+            {route === 'game-over' && gameOverSnapshot && (
+              <GameOverPage
+                snapshot={gameOverSnapshot}
+                onRetry={retryFromGameOver}
+                onMenu={menuFromGameOver}
+                onLeaderboard={leaderboardFromGameOver}
               />
             )}
             {route === 'leaderboard' && (

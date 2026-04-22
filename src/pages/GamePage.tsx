@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-
-/** 避免 StrictMode 下重复通知父级高亮 */
-let gameOverHighlightNotifiedId: string | null = null
 import { GameCanvas } from '../components/game/GameCanvas'
 import { HUD } from '../components/ui/HUD'
-import { GameOverPanel } from '../components/ui/GameOverPanel'
 import { LevelClearModal } from '../components/ui/LevelClearModal'
 import { PauseModal } from '../components/ui/PauseModal'
 import { useGameAudio } from '../hooks/useAudio'
 import { useGameStore } from '../store/gameStore'
+import { consumeGameOverHighlightOnce, resetGameOverHighlightFlag } from '../utils/gameOverHighlight'
+
+export type GameEntrySource = 'menu' | 'retry'
 
 type Props = {
+  entrySource: GameEntrySource
   onBack: () => void
-  onGoLeaderboard: () => void
-  onGameOverRecorded: (p: { entryId: string; brokeRecord: boolean }) => void
+  onGameOver: (p: {
+    score: number
+    level: number
+    brokeRecord: boolean
+    entryId: string
+  }) => void
 }
 
-export function GamePage({ onBack, onGoLeaderboard, onGameOverRecorded }: Props) {
+export function GamePage({ entrySource, onBack, onGameOver }: Props) {
   const [sessionKey, setSessionKey] = useState(0)
 
   const phase = useGameStore((s) => s.phase)
@@ -27,6 +31,7 @@ export function GamePage({ onBack, onGoLeaderboard, onGameOverRecorded }: Props)
   const lastRecordId = useGameStore((s) => s.lastRecordId)
   const lastBrokeRecord = useGameStore((s) => s.lastBrokeRecord)
   const resetRun = useGameStore((s) => s.resetRun)
+  const restartCurrentLevel = useGameStore((s) => s.restartCurrentLevel)
   const beginPlaying = useGameStore((s) => s.beginPlaying)
   const advanceLevel = useGameStore((s) => s.advanceLevel)
   const pauseGame = useGameStore((s) => s.pauseGame)
@@ -34,28 +39,34 @@ export function GamePage({ onBack, onGoLeaderboard, onGameOverRecorded }: Props)
   const audio = useGameAudio()
   const levelClearSound = useRef(false)
 
-  const onGameOverRecordedCb = useCallback(
-    (p: { entryId: string; brokeRecord: boolean }) => {
-      onGameOverRecorded(p)
+  const onGameOverCb = useCallback(
+    (p: { score: number; level: number; brokeRecord: boolean; entryId: string }) => {
+      onGameOver(p)
     },
-    [onGameOverRecorded],
+    [onGameOver],
   )
 
   useEffect(() => {
-    resetRun()
+    if (entrySource === 'menu') {
+      resetRun()
+    }
     beginPlaying()
-  }, [resetRun, beginPlaying])
+  }, [entrySource, resetRun, beginPlaying])
 
   useEffect(() => {
     if (phase === 'playing') {
-      gameOverHighlightNotifiedId = null
+      resetGameOverHighlightFlag()
       return
     }
     if (phase !== 'gameOver' || !lastRecordId) return
-    if (gameOverHighlightNotifiedId === lastRecordId) return
-    gameOverHighlightNotifiedId = lastRecordId
-    onGameOverRecordedCb({ entryId: lastRecordId, brokeRecord: lastBrokeRecord })
-  }, [phase, lastRecordId, lastBrokeRecord, onGameOverRecordedCb])
+    if (!consumeGameOverHighlightOnce(lastRecordId)) return
+    onGameOverCb({
+      score,
+      level,
+      brokeRecord: lastBrokeRecord,
+      entryId: lastRecordId,
+    })
+  }, [phase, lastRecordId, lastBrokeRecord, score, level, onGameOverCb])
 
   useEffect(() => {
     if (phase === 'levelClear' && !levelClearSound.current) {
@@ -77,7 +88,7 @@ export function GamePage({ onBack, onGoLeaderboard, onGameOverRecorded }: Props)
   }, [])
 
   const restartSession = () => {
-    resetRun()
+    restartCurrentLevel()
     beginPlaying()
     setSessionKey((k) => k + 1)
   }
@@ -130,20 +141,6 @@ export function GamePage({ onBack, onGoLeaderboard, onGameOverRecorded }: Props)
           onRestart={restartSession}
           onExitMenu={exitToMenu}
         />
-
-        {phase === 'gameOver' && (
-          <GameOverPanel
-            score={score}
-            reachedLevel={level}
-            brokeRecord={lastBrokeRecord}
-            onRetry={restartSession}
-            onMenu={exitToMenu}
-            onLeaderboard={() => {
-              resetRun()
-              onGoLeaderboard()
-            }}
-          />
-        )}
       </div>
     </div>
   )

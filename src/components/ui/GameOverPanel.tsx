@@ -5,6 +5,8 @@ type Props = {
   onRetry: () => void
   onMenu: () => void
   onLeaderboard: () => void
+  /** overlay：画布上层；page：独立全屏页 */
+  variant?: 'overlay' | 'page'
 }
 
 /** 游戏结束：得分、刷新纪录动效、操作按钮 */
@@ -15,9 +17,15 @@ export function GameOverPanel({
   onRetry,
   onMenu,
   onLeaderboard,
+  variant = 'overlay',
 }: Props) {
+  const shell =
+    variant === 'page'
+      ? 'flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border border-slate-800/80 bg-black/82 px-4 py-8 text-center shadow-inner'
+      : 'absolute inset-0 z-[38] flex flex-col items-center justify-center gap-4 rounded-lg bg-black/85 px-4 text-center'
+
   return (
-    <div className="absolute inset-0 z-[38] flex flex-col items-center justify-center gap-4 rounded-lg bg-black/85 px-4 text-center">
+    <div className={shell}>
       <p className="font-display text-lg text-rose-400">游戏结束</p>
 
       {brokeRecord && (
